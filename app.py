@@ -254,115 +254,100 @@ st.markdown("---")
 # ... (이전 코드 생략)
 
 # -----------------------------------------------------
-# [2열] 요일별 / 시간대별 (전체 패턴 vs 선택 패턴 비교 적용)
-# -----------------------------------------------------
-# ... (이전 코드 생략)
-
-# -----------------------------------------------------
-# [2열] 요일별 / 시간대별 (비율 기반 패턴 비교)
+# [2열] 요일별 / 시간대별 (Overlay Bar 차트: 평균 막대 안에 실제 막대)
 # -----------------------------------------------------
 col3, col4 = st.columns(2)
 
+# 공통 계산용 변수
+total_days_count = df['발생일'].nunique()
+current_days_count = detail_df['발생일'].nunique() if not detail_df.empty else 0
+
 with col3:
-    st.subheader("3️⃣ 요일별 발생 패턴 (분포 비교)")
-    if not detail_df.empty:
-        # 1. [선택 기간] 데이터 집계 및 비율 계산
+    st.subheader("3️⃣ 요일별 발생 패턴 (평균 vs 실제)")
+    if not detail_df.empty and total_days_count > 0:
+        # 1. [선택 기간] 실제 데이터
         d_cnt = detail_df.groupby(['요일_명','요일_숫자']).size().reset_index(name='건수').sort_values('요일_숫자')
-        current_total = d_cnt['건수'].sum()
-        d_cnt['비율'] = (d_cnt['건수'] / current_total) * 100 # % 계산
-
-        # 2. [전체 누적] 데이터 집계 및 비율 계산
+        
+        # 2. [전체 누적] -> 기간 비율로 '평균 예상 건수' 계산
         total_d_cnt = df.groupby(['요일_명','요일_숫자']).size().reset_index(name='전체건수').sort_values('요일_숫자')
-        all_total = total_d_cnt['전체건수'].sum()
-        total_d_cnt['전체비율'] = (total_d_cnt['전체건수'] / all_total) * 100 # % 계산
-
-        # 3. 시각화 (Y축을 %로 통일)
+        total_d_cnt['예상건수'] = total_d_cnt['전체건수'] * (current_days_count / total_days_count)
+        
         fig_d = go.Figure()
 
-        # (1) 배경: 전체 평균 분포 (회색 선/영역)
-        fig_d.add_trace(go.Scatter(
+        # (1) 배경 막대: 평균 예상치 (넓고 연한 색)
+        fig_d.add_trace(go.Bar(
             x=total_d_cnt['요일_명'], 
-            y=total_d_cnt['전체비율'],
-            name='평소 패턴(%)',
-            mode='lines+markers',
-            line=dict(color='rgba(180, 180, 180, 0.5)', width=2, dash='dot'),
-            hovertemplate='평소 비중: %{y:.1f}%<br>(누적 %{text}건)',
-            text=total_d_cnt['전체건수'] # 호버용 데이터
+            y=total_d_cnt['예상건수'],
+            name='평균(예상)',
+            marker_color='rgba(200, 200, 200, 0.5)', # 연한 회색
+            width=0.6, # 너비를 넓게 설정
+            hoverinfo='none' # 배경은 호버 끄거나 간단히
         ))
 
-        # (2) 전경: 선택 기간 분포 (컬러 막대)
+        # (2) 전경 막대: 실제 발생 (좁고 진한 색) -> "안에 있는" 느낌
         fig_d.add_trace(go.Bar(
             x=d_cnt['요일_명'], 
-            y=d_cnt['비율'],
-            name='선택 기간(%)',
+            y=d_cnt['건수'],
+            name='실제(선택)',
             marker_color='#00CC96',
-            text=d_cnt['건수'], # 막대 위에는 '실제 건수' 표시
-            texttemplate='%{text}건', # 텍스트 포맷
-            textposition='auto',
-            hovertemplate='이번 비중: %{y:.1f}%<br>(실제 %{text}건)'
+            width=0.3, # 너비를 좁게 설정하여 안에 쏙 들어가게 함
+            text=d_cnt['건수'],
+            textposition='auto'
         ))
 
         fig_d.update_layout(
-            yaxis=dict(title="발생 비중 (%)", ticksuffix="%"), # Y축은 퍼센트
+            barmode='overlay', # 핵심: 막대를 겹쳐서 그리기
+            yaxis_title="건수",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20),
-            hovermode="x unified" # 마우스 올리면 둘 다 비교
+            margin=dict(t=40, b=20, l=20, r=20)
         )
-        
-        st.plotly_chart(fig_d, use_container_width=True, key="chart_day_pattern")
+        st.plotly_chart(fig_d, use_container_width=True, key="chart_day_overlay")
     else: st.info("데이터 없음")
 
 with col4:
-    st.subheader("4️⃣ 시간대별 집중 발생 (Peak Time)")
-    if not detail_df.empty:
-        # 1. [선택 기간] 데이터
+    st.subheader("4️⃣ 시간대별 집중 발생 (평균 vs 실제)")
+    if not detail_df.empty and total_days_count > 0:
+        # 1. [선택 기간] 실제 데이터
         h_cnt = detail_df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
-        current_total_h = h_cnt.sum()
-        h_pct = (h_cnt / current_total_h * 100).fillna(0) # % 계산
-
-        # 2. [전체 누적] 데이터
+        
+        # 2. [전체 누적] -> 평균 예상치 변환
         total_h_cnt = df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
-        all_total_h = total_h_cnt.sum()
-        total_h_pct = (total_h_cnt / all_total_h * 100).fillna(0) # % 계산
+        expected_h = total_h_cnt * (current_days_count / total_days_count)
         
         hours = [f"{i:02d}시" for i in range(24)]
 
-        # 3. 시각화
         fig_h = go.Figure()
 
-        # (1) 배경: 전체 평균 분포
-        fig_h.add_trace(go.Scatter(
-            x=hours, 
-            y=total_h_pct.values,
-            name='평소 패턴(%)',
-            mode='lines',
-            fill='tozeroy',
-            fillcolor='rgba(200, 200, 200, 0.1)',
-            line=dict(color='rgba(180, 180, 180, 0.5)', width=1),
-            hovertemplate='평소 비중: %{y:.1f}%<br>(누적 %{text}건)',
-            text=total_h_cnt.values
-        ))
-
-        # (2) 전경: 선택 기간 분포
+        # (1) 배경 막대: 평균 예상치
         fig_h.add_trace(go.Bar(
             x=hours, 
-            y=h_pct.values,
-            name='선택 기간(%)',
+            y=expected_h.values,
+            name='평균(예상)',
+            marker_color='rgba(200, 200, 200, 0.5)',
+            width=0.8, # 넓게
+            hoverinfo='none'
+        ))
+
+        # (2) 전경 막대: 실제 발생
+        fig_h.add_trace(go.Bar(
+            x=hours, 
+            y=h_cnt.values,
+            name='실제(선택)',
             marker_color='#EF553B',
-            text=h_cnt.values, # 막대 위에는 '실제 건수'
-            texttemplate='%{text}', # 0건일 때 등 고려하여 포맷 단순화
-            textposition='outside', # 막대 밖으로 표시
-            hovertemplate='이번 비중: %{y:.1f}%<br>(실제 %{text}건)'
+            width=0.4, # 좁게
+            text=h_cnt.values,
+            texttemplate='%{text}',
+            textposition='inside', # 가능하면 안에 표시, 좁으면 자동 조정
+            insidetextanchor='middle'
         ))
 
         fig_h.update_layout(
-            yaxis=dict(title="발생 비중 (%)", ticksuffix="%"),
+            barmode='overlay', # 막대 겹치기
+            yaxis_title="건수",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20),
-            hovermode="x unified"
+            margin=dict(t=40, b=20, l=20, r=20)
         )
-        
-        st.plotly_chart(fig_h, use_container_width=True, key="chart_time_pattern")
+        st.plotly_chart(fig_h, use_container_width=True, key="chart_time_overlay")
     else: st.info("데이터 없음")
 
 # ... (이후 코드 유지)
@@ -513,6 +498,7 @@ else:
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
 
