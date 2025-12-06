@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go 
 import datetime
+import os
 
 # -----------------------------------------------------
 # 1. 데이터 로드 및 전처리
@@ -10,7 +11,12 @@ import datetime
 @st.cache_data(ttl=60)
 def load_and_combine_data(file_path):
     try:
-        xls = pd.ExcelFile(file_path)
+        # 절대 경로 처리 (로컬/클라우드 호환성)
+        if not os.path.isabs(file_path):
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(current_dir, file_path)
+
+        xls = pd.ExcelFile(file_path, engine='openpyxl')
         all_data = [xls.parse(sheet_name) for sheet_name in xls.sheet_names]
         if not all_data: return pd.DataFrame()
         df = pd.concat(all_data, ignore_index=True)
@@ -46,13 +52,14 @@ def load_and_combine_data(file_path):
         
         return df
     except Exception as e:
+        st.error(f"데이터 로드 중 오류 발생: {e}")
         return pd.DataFrame()
 
 FILE_PATH = 'kiosk_data.xlsx'
 df = load_and_combine_data(FILE_PATH)
 
 if df.empty:
-    st.error("데이터를 불러올 수 없습니다.")
+    st.error("데이터를 불러올 수 없습니다. 엑셀 파일 경로와 형식을 확인해주세요.")
     st.stop()
 
 # -----------------------------------------------------
@@ -117,7 +124,7 @@ st.sidebar.markdown(f"**선택된 데이터:** {len(detail_df):,}건")
 
 
 # -----------------------------------------------------
-# KPI 지표 (수정됨: 최다 발생 유형 증감 계산 추가)
+# KPI 지표
 # -----------------------------------------------------
 kpi1, kpi2, kpi3 = st.columns(3)
 
@@ -167,12 +174,12 @@ if not detail_df.empty:
 else:
     with kpi2: st.metric("일평균 발생", "0건")
 
-# 4. KPI 3: 최다 발생 유형 (증감 로직 적용)
+# 4. KPI 3: 최다 발생 유형
 if not detail_df.empty and '장애유형' in detail_df.columns:
     # 현재 가장 많이 발생한 유형 찾기
     top_series = detail_df['장애유형'].value_counts()
-    top_type_name = top_series.idxmax() # 유형 이름 (예: 로그인 실패)
-    current_type_count = top_series.max() # 현재 건수 (예: 15건)
+    top_type_name = top_series.idxmax() # 유형 이름
+    current_type_count = top_series.max() # 현재 건수
     
     # 이전 기간(전주/전월)에서 해당 유형의 건수 찾기
     type_delta = None
@@ -180,11 +187,9 @@ if not detail_df.empty and '장애유형' in detail_df.columns:
         # 이전 데이터에서 동일한 유형만 필터링해서 개수 셈
         prev_type_count = len(prev_period_df[prev_period_df['장애유형'] == top_type_name])
         diff_type = current_type_count - prev_type_count
-        type_delta = f"{diff_type:+}건" # 예: +3건, -2건
+        type_delta = f"{diff_type:+}건" 
     
     with kpi3:
-        # 메인 값: 유형 이름 + (현재 건수)
-        # 델타 값: 증감량
         st.metric("최다 발생 유형", f"{top_type_name} ({current_type_count}건)", type_delta, delta_color="inverse")
 else:
     with kpi3: st.metric("최다 발생 유형", "-")
@@ -209,8 +214,6 @@ with col1:
     fig_m = go.Figure(data=[go.Bar(x=m_stats['월_표기'], y=m_stats['건수'], marker_color=colors, text=m_stats['건수'])])
     fig_m.update_traces(textposition='outside')
     fig_m.update_layout(xaxis_title="월", yaxis_title="건수", margin=dict(t=20, b=20, l=20, r=20))
-    
-    # [수정] key 추가
     st.plotly_chart(fig_m, use_container_width=True, key="chart_monthly_trend")
 
 with col2:
@@ -220,8 +223,6 @@ with col2:
         fig_w = px.line(w_stats, x='주간_라벨', y='건수', markers=True, text='건수')
         fig_w.update_traces(textposition="top center")
         fig_w.update_layout(xaxis_tickangle=-45, margin=dict(t=20, b=20, l=20, r=20))
-        
-        # [수정] key 추가
         st.plotly_chart(fig_w, use_container_width=True, key="chart_weekly_trend")
     else:
         st.subheader(f"2️⃣ 일별 발생 패턴 (이번 주 vs 지난주)")
@@ -232,8 +233,6 @@ with col2:
         fig_wow.add_trace(go.Scatter(x=days, y=prev_daily.values, name=f"지난주 ({prev_week_label})", line=dict(color='gray', width=2, dash='dot')))
         fig_wow.add_trace(go.Scatter(x=days, y=curr_daily.values, name=f"선택 주 ({selected_week})", line=dict(color='#EF553B', width=4), mode='lines+markers+text', text=curr_daily.values, textposition='top center'))
         fig_wow.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1), margin=dict(t=40, b=20, l=20, r=20))
-        
-        # [수정] key 추가
         st.plotly_chart(fig_wow, use_container_width=True, key="chart_daily_comparison")
 
 st.markdown("---")
@@ -248,8 +247,6 @@ with col3:
         fig_d = px.bar(d_cnt, x='요일_명', y='건수', text='건수')
         fig_d.update_traces(marker_color='#00CC96')
         fig_d.update_layout(margin=dict(t=20, b=20, l=20, r=20))
-        
-        # [수정] key 추가
         st.plotly_chart(fig_d, use_container_width=True, key="chart_day_pattern")
     else: st.info("데이터 없음")
 
@@ -261,8 +258,6 @@ with col4:
         h_df['라벨'] = h_df['시간'].apply(lambda x: f"{x:02d}시")
         fig_h = px.bar(h_df, x='라벨', y='건수', text='건수', color='건수', color_continuous_scale='Reds')
         fig_h.update_layout(margin=dict(t=20, b=20, l=20, r=20))
-        
-        # [수정] key 추가
         st.plotly_chart(fig_h, use_container_width=True, key="chart_time_pattern")
     else: st.info("데이터 없음")
 
@@ -278,43 +273,58 @@ if not detail_df.empty and '기기명' in detail_df.columns:
         fig_top3 = px.bar(
             chart_data, y='기기명', x='건수', color='장애유형', 
             text='건수', orientation='h', 
-            category_orders={"기기명": top_devices_list}
+            category_orders={"기기명": top_devices_list},
+            color_discrete_sequence=px.colors.qualitative.Set2 # 여기도 색상 통일감을 위해 추가
         )
         fig_top3.update_layout(
             yaxis={'categoryorder':'total ascending'}, 
             xaxis_title="발생 건수", yaxis_title="기기명",
             height=300, margin=dict(t=20, b=20, l=20, r=20)
         )
-        
-        # [수정] key 추가
         st.plotly_chart(fig_top3, use_container_width=True, key="chart_device_top3")
     else: st.info("표시할 데이터가 없습니다.")
 
 st.markdown("---")
 
 # -----------------------------------------------------
-# [4열] 장애 유형 상세 비교 분석 (수정: 범례 다시 표시)
+# [4열] 장애 유형 상세 비교 분석 (수정: 색상 구분 + 가운데 텍스트)
 # -----------------------------------------------------
 st.header("6️⃣ 장애 유형 상세 비교 분석")
 
 if not prev_period_df.empty and not detail_df.empty:
     c_prev, c_center, c_curr = st.columns([3, 2, 3])
     
-    # 공통 범례 설정 (차트 하단에 가로로 배치)
+    # 공통 범례 설정
     legend_setting = dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
 
     # 1. 왼쪽: 이전 차트
     with c_prev:
         label_prev = kpi_label_suffix.replace('대비', '').strip('() ') or "이전 기간"
         st.subheader(f"📉 {label_prev}")
-        prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_p = px.pie(prev_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] showlegend=True로 변경 및 위치 조정
+        prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
+        prev_total = prev_cnt['건수'].sum() # 총 건수 계산
+
+        # [수정] 색상 지정 (Set2) 및 라벨 표시
+        fig_p = px.pie(
+            prev_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        
+        # [수정] 가운데 텍스트 추가
+        fig_p.add_annotation(
+            text=f"전체<br><b>{prev_total}</b>건",
+            x=0.5, y=0.5, showarrow=False, font_size=18
+        )
+        
+        fig_p.update_traces(textposition='inside', textinfo='percent+label')
         fig_p.update_layout(
             showlegend=True, 
             legend=legend_setting,
-            margin=dict(t=0, b=50, l=0, r=0) # 하단 여백 확보
+            margin=dict(t=0, b=50, l=0, r=0)
         )
         st.plotly_chart(fig_p, use_container_width=True, key="chart_pie_prev")
 
@@ -349,10 +359,26 @@ if not prev_period_df.empty and not detail_df.empty:
     # 3. 오른쪽: 현재 차트
     with c_curr:
         st.subheader("📈 현재 기간")
-        curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_c = px.pie(curr_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] showlegend=True로 변경 및 위치 조정
+        curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
+        curr_total = curr_cnt['건수'].sum() # 총 건수 계산
+
+        # [수정] 색상 지정 (Set2)
+        fig_c = px.pie(
+            curr_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        
+        # [수정] 가운데 텍스트 추가
+        fig_c.add_annotation(
+            text=f"전체<br><b>{curr_total}</b>건",
+            x=0.5, y=0.5, showarrow=False, font_size=18
+        )
+
+        fig_c.update_traces(textposition='inside', textinfo='percent+label')
         fig_c.update_layout(
             showlegend=True, 
             legend=legend_setting,
@@ -361,10 +387,27 @@ if not prev_period_df.empty and not detail_df.empty:
         st.plotly_chart(fig_c, use_container_width=True, key="chart_pie_curr")
 
 else:
+    # 비교 데이터가 없을 때 (현재 데이터만 표시)
     st.info("비교할 과거 데이터가 없어 현재 데이터만 표시합니다.")
     if not detail_df.empty:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_t = px.pie(t_cnt, names='장애유형', values='건수', hole=0.3)
+        t_total = t_cnt['건수'].sum()
+
+        # [수정] 여기도 동일하게 적용
+        fig_t = px.pie(
+            t_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        
+        fig_t.add_annotation(
+            text=f"전체<br><b>{t_total}</b>건",
+            x=0.5, y=0.5, showarrow=False, font_size=20
+        )
+        
+        fig_t.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
