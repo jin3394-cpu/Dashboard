@@ -309,32 +309,28 @@ st.header("6️⃣ 장애 유형 상세 비교 분석")
 
 if not prev_period_df.empty and not detail_df.empty:
     c_prev, c_center, c_curr = st.columns([3, 2, 3])
+    
+    # 공통 범례 설정
     legend_setting = dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
 
-    # 1. 이전 차트
+    # 1. 왼쪽: 이전 차트
     with c_prev:
         label_prev = kpi_label_suffix.replace('대비', '').strip('() ') or "이전 기간"
         st.subheader(f"📉 {label_prev}")
-        
         prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
-        prev_total = prev_cnt['건수'].sum()
-
-        # [수정] color_discrete_map 사용
-        fig_p = px.pie(
-            prev_cnt, 
-            names='장애유형', 
-            values='건수', 
-            hole=0.4,
-            color='장애유형', # 명시적으로 컬러 기준 설정
-            color_discrete_map=TYPE_COLOR_MAP # 고정 색상 적용
-        )
+        fig_p = px.pie(prev_cnt, names='장애유형', values='건수', hole=0.4)
         
-        fig_p.add_annotation(text=f"전체<br><b>{prev_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=18)
-        fig_p.update_traces(textposition='inside', textinfo='percent+label')
-        fig_p.update_layout(showlegend=True, legend=legend_setting, margin=dict(t=0, b=50, l=0, r=0))
+        # [수정] 건수와 퍼센트를 함께 표시
+        fig_p.update_traces(textinfo='percent+value') 
+        
+        fig_p.update_layout(
+            showlegend=True, 
+            legend=legend_setting,
+            margin=dict(t=0, b=50, l=0, r=0)
+        )
         st.plotly_chart(fig_p, use_container_width=True, key="chart_pie_prev")
 
-    # 2. 증감 내역 (테이블)
+    # 2. 중앙: 증감 내역 (기존과 동일)
     with c_center:
         st.subheader("📊 증감 내역")
         curr_s = detail_df['장애유형'].value_counts()
@@ -362,47 +358,34 @@ if not prev_period_df.empty and not detail_df.empty:
             }
         )
 
-    # 3. 현재 차트
+    # 3. 오른쪽: 현재 차트
     with c_curr:
         st.subheader("📈 현재 기간")
         curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        curr_total = curr_cnt['건수'].sum()
-
-        # [수정] color_discrete_map 사용
-        fig_c = px.pie(
-            curr_cnt, 
-            names='장애유형', 
-            values='건수', 
-            hole=0.4,
-            color='장애유형',
-            color_discrete_map=TYPE_COLOR_MAP
-        )
+        fig_c = px.pie(curr_cnt, names='장애유형', values='건수', hole=0.4)
         
-        fig_c.add_annotation(text=f"전체<br><b>{curr_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=18)
-        fig_c.update_traces(textposition='inside', textinfo='percent+label')
-        fig_c.update_layout(showlegend=True, legend=legend_setting, margin=dict(t=0, b=50, l=0, r=0))
+        # [수정] 건수와 퍼센트를 함께 표시
+        fig_c.update_traces(textinfo='percent+value')
+        
+        fig_c.update_layout(
+            showlegend=True, 
+            legend=legend_setting,
+            margin=dict(t=0, b=50, l=0, r=0)
+        )
         st.plotly_chart(fig_c, use_container_width=True, key="chart_pie_curr")
 
 else:
     st.info("비교할 과거 데이터가 없어 현재 데이터만 표시합니다.")
     if not detail_df.empty:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        t_total = t_cnt['건수'].sum()
-
-        # [수정] color_discrete_map 사용
-        fig_t = px.pie(
-            t_cnt, 
-            names='장애유형', 
-            values='건수', 
-            hole=0.4,
-            color='장애유형',
-            color_discrete_map=TYPE_COLOR_MAP
-        )
+        fig_t = px.pie(t_cnt, names='장애유형', values='건수', hole=0.3)
         
-        fig_t.add_annotation(text=f"전체<br><b>{t_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=20)
-        fig_t.update_traces(textposition='inside', textinfo='percent+label')
+        # [수정] 건수와 퍼센트를 함께 표시 (데이터가 없을 때 표시되는 차트)
+        fig_t.update_traces(textinfo='percent+value')
+        
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
