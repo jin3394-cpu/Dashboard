@@ -256,93 +256,38 @@ st.markdown("---")
 
 col3, col4 = st.columns(2)
 
+# ... (이전 코드 생략)
+
+# -----------------------------------------------------
+# [2열] 요일별 / 시간대별 (초기 상태 복구)
+# -----------------------------------------------------
+col3, col4 = st.columns(2)
+
 with col3:
-    st.subheader("3️⃣ 요일별 발생 패턴 (전체 vs 선택)")
+    st.subheader("3️⃣ 요일별 발생 패턴")
     if not detail_df.empty:
-        # 1. [선택 기간] 데이터 집계
         d_cnt = detail_df.groupby(['요일_명','요일_숫자']).size().reset_index(name='건수').sort_values('요일_숫자')
+        fig_d = px.bar(d_cnt, x='요일_명', y='건수', text='건수')
+        fig_d.update_traces(marker_color='#00CC96')
+        fig_d.update_layout(margin=dict(t=20, b=20, l=20, r=20))
         
-        # 2. [전체 누적] 데이터 집계 (배경용)
-        total_d_cnt = df.groupby(['요일_명','요일_숫자']).size().reset_index(name='전체건수').sort_values('요일_숫자')
-        
-        fig_d = go.Figure()
-
-        # (1) 배경: 전체 데이터 (회색)
-        fig_d.add_trace(go.Bar(
-            x=total_d_cnt['요일_명'], 
-            y=total_d_cnt['전체건수'],
-            name='전체 누적',
-            marker_color='rgba(220, 220, 220, 0.7)', # 연한 회색
-            text=total_d_cnt['전체건수'],
-            textposition='none', # 배경 텍스트는 숨김 (깔끔하게)
-            hoverinfo='y+name'   # 호버 시 값은 보이게
-        ))
-
-        # (2) 전경: 선택된 데이터 (초록색)
-        fig_d.add_trace(go.Bar(
-            x=d_cnt['요일_명'], 
-            y=d_cnt['건수'],
-            name='선택 기간',
-            marker_color='#00CC96',
-            text=d_cnt['건수'],
-            textposition='auto'
-        ))
-
-        fig_d.update_layout(
-            barmode='overlay', # 막대를 겹쳐서 그림
-            yaxis_title="건수",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20)
-        )
-        
-        st.plotly_chart(fig_d, use_container_width=True, key="chart_day_overlay_raw")
+        st.plotly_chart(fig_d, use_container_width=True, key="chart_day_pattern")
     else: st.info("데이터 없음")
 
 with col4:
-    st.subheader("4️⃣ 시간대별 집중 발생 (전체 vs 선택)")
+    st.subheader("4️⃣ 시간대별 집중 발생 (Peak Time)")
     if not detail_df.empty:
-        # 1. [선택 기간]
         h_cnt = detail_df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
+        h_df = pd.DataFrame({'시간': h_cnt.index, '건수': h_cnt.values})
+        h_df['라벨'] = h_df['시간'].apply(lambda x: f"{x:02d}시")
         
-        # 2. [전체 누적]
-        total_h_cnt = df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
+        fig_h = px.bar(h_df, x='라벨', y='건수', text='건수', color='건수', color_continuous_scale='Reds')
+        fig_h.update_layout(margin=dict(t=20, b=20, l=20, r=20))
         
-        hours = [f"{i:02d}시" for i in range(24)]
-
-        fig_h = go.Figure()
-
-        # (1) 배경: 전체 데이터 (회색)
-        fig_h.add_trace(go.Bar(
-            x=hours, 
-            y=total_h_cnt.values,
-            name='전체 누적',
-            marker_color='rgba(220, 220, 220, 0.7)',
-            text=total_h_cnt.values,
-            textposition='none',
-            hoverinfo='y+name'
-        ))
-
-        # (2) 전경: 선택된 데이터 (붉은색)
-        fig_h.add_trace(go.Bar(
-            x=hours, 
-            y=h_cnt.values,
-            name='선택 기간',
-            marker_color='#EF553B',
-            text=h_cnt.values,
-            texttemplate='%{text}', # 0이 아닐 때만 숫자 표시하고 싶다면 조건 처리 필요하지만 일단 표시
-            textposition='inside',  # 막대 안쪽에 표시 시도
-            insidetextanchor='middle'
-        ))
-
-        fig_h.update_layout(
-            barmode='overlay', # 겹쳐서 그리기
-            yaxis_title="건수",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20)
-        )
-        
-        st.plotly_chart(fig_h, use_container_width=True, key="chart_time_overlay_raw")
+        st.plotly_chart(fig_h, use_container_width=True, key="chart_time_pattern")
     else: st.info("데이터 없음")
+
+# ... (이후 코드 유지)
 
 st.markdown("---")
 
