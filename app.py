@@ -320,8 +320,11 @@ if not prev_period_df.empty and not detail_df.empty:
         prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
         fig_p = px.pie(prev_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
-        fig_p.update_traces(textinfo='label+percent+value') 
+        # [수정] texttemplate 사용: 이름 <br>(줄바꿈) 건수 / 퍼센트
+        fig_p.update_traces(
+            texttemplate='%{label}<br>%{value}건 / %{percent}',
+            textposition='inside'
+        )
         
         fig_p.update_layout(
             showlegend=True, 
@@ -364,8 +367,11 @@ if not prev_period_df.empty and not detail_df.empty:
         curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
         fig_c = px.pie(curr_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
-        fig_c.update_traces(textinfo='label+percent+value')
+        # [수정] texttemplate 사용
+        fig_c.update_traces(
+            texttemplate='%{label}<br>%{value}건 / %{percent}',
+            textposition='inside'
+        )
         
         fig_c.update_layout(
             showlegend=True, 
@@ -380,12 +386,16 @@ else:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
         fig_t = px.pie(t_cnt, names='장애유형', values='건수', hole=0.3)
         
-        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
-        fig_t.update_traces(textinfo='label+percent+value')
+        # [수정] texttemplate 사용 (데이터 없을 때 fallback 차트)
+        fig_t.update_traces(
+            texttemplate='%{label}<br>%{value}건 / %{percent}',
+            textposition='inside'
+        )
         
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
 
