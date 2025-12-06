@@ -6,12 +6,36 @@ import datetime
 import os
 
 # -----------------------------------------------------
+# [설정] 장애 유형별 고정 색상 지도 (Color Map)
+# -----------------------------------------------------
+# 엑셀에 있는 '장애유형' 텍스트와 정확히 일치해야 색상이 적용됩니다.
+# 여기에 없는 유형은 Plotly가 알아서 회색/랜덤 색상을 부여합니다.
+TYPE_COLOR_MAP = {
+    # 1. 요청하신 색상 (전기=연녹색, 카드=주황색)
+    "전기 이슈": "#4cd137",      # 선명한 연녹색 (Kiosk Green)
+    "전원 불량": "#4cd137",      
+    "카드 미방출": "#e67e22",    # 진한 주황색 (Carrot)
+    "카드 리더기": "#e67e22",
+    "결제 오류": "#f39c12",      # 밝은 주황
+
+    # 2. 기타 추천 색상 조합 (이쁘게 배정)
+    "네트워크 장애": "#0097e6",  # 파란색 (통신 느낌)
+    "통신 오류": "#0097e6",
+    "용지 걸림": "#9c88ff",      # 보라색 (프린터/소모품)
+    "프린터 오류": "#9c88ff",
+    "화면 불량": "#e84118",      # 빨간색 (하드웨어 고장)
+    "터치 패널": "#e84118",
+    "소프트웨어 오류": "#00cec9", # 청록색 (시스템)
+    "앱 충돌": "#00cec9",
+    "기타": "#7f8fa6"            # 회색
+}
+
+# -----------------------------------------------------
 # 1. 데이터 로드 및 전처리
 # -----------------------------------------------------
 @st.cache_data(ttl=60)
 def load_and_combine_data(file_path):
     try:
-        # 절대 경로 처리 (로컬/클라우드 호환성)
         if not os.path.isabs(file_path):
             current_dir = os.path.dirname(os.path.abspath(__file__))
             file_path = os.path.join(current_dir, file_path)
@@ -21,14 +45,12 @@ def load_and_combine_data(file_path):
         if not all_data: return pd.DataFrame()
         df = pd.concat(all_data, ignore_index=True)
         
-        # 날짜 컬럼명 통일
         if '접수일시' in df.columns:
             df.rename(columns={'접수일시': '발생일'}, inplace=True)
         
         df['발생일'] = pd.to_datetime(df.get('발생일'), errors='coerce')
         df.dropna(subset=['발생일'], inplace=True)
         
-        # 시간 추출
         if '발생시간' in df.columns:
             df['temp_time_str'] = df['발생시간'].astype(str)
             df['temp_datetime'] = pd.to_datetime(df['temp_time_str'], errors='coerce')
@@ -38,14 +60,12 @@ def load_and_combine_data(file_path):
         else:
             df['시간'] = df['발생일'].dt.hour
         
-        # 파생 변수
         df['월_표기'] = df['발생일'].dt.strftime('%m월')
         df['일_표기'] = df['발생일'].dt.strftime('%d일')
         df['요일_숫자'] = df['발생일'].dt.weekday 
         day_map = {0:'월', 1:'화', 2:'수', 3:'목', 4:'금', 5:'토', 6:'일'}
         df['요일_명'] = df['요일_숫자'].map(day_map)
 
-        # 주간 라벨
         df['주_시작일'] = df['발생일'] - pd.to_timedelta((df['발생일'].dt.weekday + 1) % 7, unit='D')
         df['주_종료일'] = df['주_시작일'] + pd.to_timedelta(6, unit='D')
         df['주간_라벨'] = df['주_시작일'].dt.strftime('%m/%d') + "~" + df['주_종료일'].dt.strftime('%m/%d')
@@ -71,7 +91,6 @@ st.markdown("---")
 
 current_df = df.copy()
 
-# 사이드바
 st.sidebar.header("필터링 옵션")
 
 # 1. 월별
@@ -109,7 +128,6 @@ if '장애유형' in df.columns:
     if selected_type != '전체':
         current_df = current_df[current_df['장애유형'] == selected_type]
 
-# 데이터셋 분리
 detail_df = current_df.copy()
 if selected_week != '전체':
     detail_df = detail_df[detail_df['주간_라벨'] == selected_week]
@@ -128,45 +146,37 @@ st.sidebar.markdown(f"**선택된 데이터:** {len(detail_df):,}건")
 # -----------------------------------------------------
 kpi1, kpi2, kpi3 = st.columns(3)
 
-# 1. 비교 데이터(지난달 or 지난주) 준비
-prev_period_df = pd.DataFrame() # 이전 기간 데이터 담을 변수
-kpi_label_suffix = ""           # "(전월 대비)" 같은 텍스트
+prev_period_df = pd.DataFrame() 
+kpi_label_suffix = ""           
 
 if selected_week != '전체':
-    # 주간 선택 시: 이미 위에서 만든 comparison_df 사용
     if not comparison_df.empty:
         prev_period_df = comparison_df
         kpi_label_suffix = " (지난주 대비)"
 elif selected_month != '전체':
-    # 월간 선택 시: 이전 달 데이터 추출
     try:
         curr_idx = sorted_months.index(selected_month)
         if curr_idx > 0:
             prev_month_name = sorted_months[curr_idx - 1]
-            # 전체 데이터에서 이전 달 필터링
             temp_prev = df[df['월_표기'] == prev_month_name]
-            # 유형 필터가 걸려있다면 같이 적용
             if selected_type != '전체':
                 temp_prev = temp_prev[temp_prev['장애유형'] == selected_type]
             prev_period_df = temp_prev
             kpi_label_suffix = " (전월 대비)"
-    except:
-        pass
+    except: pass
 
-# 2. KPI 1: 총 발생 건수
 total_count = len(detail_df)
 total_delta = None
 
 if not prev_period_df.empty:
     diff_total = total_count - len(prev_period_df)
-    total_delta = f"{diff_total:+}건" # 부호(+/-) 자동 붙임
+    total_delta = f"{diff_total:+}건" 
 
 with kpi1:
     st.metric("총 발생 건수", f"{total_count:,}건", total_delta, delta_color="inverse")
     if kpi_label_suffix and total_delta:
         st.caption(kpi_label_suffix)
 
-# 3. KPI 2: 일평균 발생
 if not detail_df.empty:
     day_count = detail_df['발생일'].nunique()
     avg = total_count / day_count if day_count > 0 else 0
@@ -174,17 +184,13 @@ if not detail_df.empty:
 else:
     with kpi2: st.metric("일평균 발생", "0건")
 
-# 4. KPI 3: 최다 발생 유형
 if not detail_df.empty and '장애유형' in detail_df.columns:
-    # 현재 가장 많이 발생한 유형 찾기
     top_series = detail_df['장애유형'].value_counts()
-    top_type_name = top_series.idxmax() # 유형 이름
-    current_type_count = top_series.max() # 현재 건수
+    top_type_name = top_series.idxmax()
+    current_type_count = top_series.max()
     
-    # 이전 기간(전주/전월)에서 해당 유형의 건수 찾기
     type_delta = None
     if not prev_period_df.empty:
-        # 이전 데이터에서 동일한 유형만 필터링해서 개수 셈
         prev_type_count = len(prev_period_df[prev_period_df['장애유형'] == top_type_name])
         diff_type = current_type_count - prev_type_count
         type_delta = f"{diff_type:+}건" 
@@ -200,7 +206,6 @@ st.markdown("---")
 # 3. 시각화 영역
 # -----------------------------------------------------
 
-# [1열] 월간/주간 추이
 col1, col2 = st.columns(2)
 
 with col1:
@@ -237,7 +242,6 @@ with col2:
 
 st.markdown("---")
 
-# [2열] 요일별 / 시간대별
 col3, col4 = st.columns(2)
 
 with col3:
@@ -263,18 +267,21 @@ with col4:
 
 st.markdown("---")
 
-# [3열] 기기별 Top 3
+# 5. 기기별 Top 3 (여기도 색상 맵 적용)
 st.subheader("5️⃣ 장애 다발 기기 Top 3")
 if not detail_df.empty and '기기명' in detail_df.columns:
     top_devices_list = detail_df['기기명'].value_counts().head(3).index.tolist()
     if top_devices_list:
         top3_df = detail_df[detail_df['기기명'].isin(top_devices_list)]
         chart_data = top3_df.groupby(['기기명', '장애유형']).size().reset_index(name='건수')
+        
+        # [수정] color='장애유형' 및 color_discrete_map 적용
         fig_top3 = px.bar(
-            chart_data, y='기기명', x='건수', color='장애유형', 
+            chart_data, y='기기명', x='건수', 
+            color='장애유형',             # 색상 기준
+            color_discrete_map=TYPE_COLOR_MAP, # 고정 색상표 적용
             text='건수', orientation='h', 
-            category_orders={"기기명": top_devices_list},
-            color_discrete_sequence=px.colors.qualitative.Set2 # 여기도 색상 통일감을 위해 추가
+            category_orders={"기기명": top_devices_list}
         )
         fig_top3.update_layout(
             yaxis={'categoryorder':'total ascending'}, 
@@ -287,48 +294,38 @@ if not detail_df.empty and '기기명' in detail_df.columns:
 st.markdown("---")
 
 # -----------------------------------------------------
-# [4열] 장애 유형 상세 비교 분석 (수정: 색상 구분 + 가운데 텍스트)
+# 6. 장애 유형 상세 비교 분석 (핵심: 고정 색상 적용)
 # -----------------------------------------------------
 st.header("6️⃣ 장애 유형 상세 비교 분석")
 
 if not prev_period_df.empty and not detail_df.empty:
     c_prev, c_center, c_curr = st.columns([3, 2, 3])
-    
-    # 공통 범례 설정
     legend_setting = dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
 
-    # 1. 왼쪽: 이전 차트
+    # 1. 이전 차트
     with c_prev:
         label_prev = kpi_label_suffix.replace('대비', '').strip('() ') or "이전 기간"
         st.subheader(f"📉 {label_prev}")
         
         prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
-        prev_total = prev_cnt['건수'].sum() # 총 건수 계산
+        prev_total = prev_cnt['건수'].sum()
 
-        # [수정] 색상 지정 (Set2) 및 라벨 표시
+        # [수정] color_discrete_map 사용
         fig_p = px.pie(
             prev_cnt, 
             names='장애유형', 
             values='건수', 
             hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Set2
+            color='장애유형', # 명시적으로 컬러 기준 설정
+            color_discrete_map=TYPE_COLOR_MAP # 고정 색상 적용
         )
         
-        # [수정] 가운데 텍스트 추가
-        fig_p.add_annotation(
-            text=f"전체<br><b>{prev_total}</b>건",
-            x=0.5, y=0.5, showarrow=False, font_size=18
-        )
-        
+        fig_p.add_annotation(text=f"전체<br><b>{prev_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=18)
         fig_p.update_traces(textposition='inside', textinfo='percent+label')
-        fig_p.update_layout(
-            showlegend=True, 
-            legend=legend_setting,
-            margin=dict(t=0, b=50, l=0, r=0)
-        )
+        fig_p.update_layout(showlegend=True, legend=legend_setting, margin=dict(t=0, b=50, l=0, r=0))
         st.plotly_chart(fig_p, use_container_width=True, key="chart_pie_prev")
 
-    # 2. 중앙: 증감 내역
+    # 2. 증감 내역 (테이블)
     with c_center:
         st.subheader("📊 증감 내역")
         curr_s = detail_df['장애유형'].value_counts()
@@ -356,57 +353,44 @@ if not prev_period_df.empty and not detail_df.empty:
             }
         )
 
-    # 3. 오른쪽: 현재 차트
+    # 3. 현재 차트
     with c_curr:
         st.subheader("📈 현재 기간")
-        
         curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        curr_total = curr_cnt['건수'].sum() # 총 건수 계산
+        curr_total = curr_cnt['건수'].sum()
 
-        # [수정] 색상 지정 (Set2)
+        # [수정] color_discrete_map 사용
         fig_c = px.pie(
             curr_cnt, 
             names='장애유형', 
             values='건수', 
             hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Set2
+            color='장애유형',
+            color_discrete_map=TYPE_COLOR_MAP
         )
         
-        # [수정] 가운데 텍스트 추가
-        fig_c.add_annotation(
-            text=f"전체<br><b>{curr_total}</b>건",
-            x=0.5, y=0.5, showarrow=False, font_size=18
-        )
-
+        fig_c.add_annotation(text=f"전체<br><b>{curr_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=18)
         fig_c.update_traces(textposition='inside', textinfo='percent+label')
-        fig_c.update_layout(
-            showlegend=True, 
-            legend=legend_setting,
-            margin=dict(t=0, b=50, l=0, r=0)
-        )
+        fig_c.update_layout(showlegend=True, legend=legend_setting, margin=dict(t=0, b=50, l=0, r=0))
         st.plotly_chart(fig_c, use_container_width=True, key="chart_pie_curr")
 
 else:
-    # 비교 데이터가 없을 때 (현재 데이터만 표시)
     st.info("비교할 과거 데이터가 없어 현재 데이터만 표시합니다.")
     if not detail_df.empty:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
         t_total = t_cnt['건수'].sum()
 
-        # [수정] 여기도 동일하게 적용
+        # [수정] color_discrete_map 사용
         fig_t = px.pie(
             t_cnt, 
             names='장애유형', 
             values='건수', 
             hole=0.4,
-            color_discrete_sequence=px.colors.qualitative.Set2
+            color='장애유형',
+            color_discrete_map=TYPE_COLOR_MAP
         )
         
-        fig_t.add_annotation(
-            text=f"전체<br><b>{t_total}</b>건",
-            x=0.5, y=0.5, showarrow=False, font_size=20
-        )
-        
+        fig_t.add_annotation(text=f"전체<br><b>{t_total}</b>건", x=0.5, y=0.5, showarrow=False, font_size=20)
         fig_t.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
