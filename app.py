@@ -256,51 +256,57 @@ st.markdown("---")
 # -----------------------------------------------------
 # [2열] 요일별 / 시간대별 (전체 패턴 vs 선택 패턴 비교 적용)
 # -----------------------------------------------------
+# ... (이전 코드 생략)
+
+# -----------------------------------------------------
+# [2열] 요일별 / 시간대별 (비율 기반 패턴 비교)
+# -----------------------------------------------------
 col3, col4 = st.columns(2)
 
 with col3:
-    st.subheader("3️⃣ 요일별 발생 패턴 (전체 vs 선택)")
+    st.subheader("3️⃣ 요일별 발생 패턴 (분포 비교)")
     if not detail_df.empty:
-        # 1. 선택된 데이터 집계
+        # 1. [선택 기간] 데이터 집계 및 비율 계산
         d_cnt = detail_df.groupby(['요일_명','요일_숫자']).size().reset_index(name='건수').sort_values('요일_숫자')
-        
-        # 2. 전체 데이터 집계 (비교군)
+        current_total = d_cnt['건수'].sum()
+        d_cnt['비율'] = (d_cnt['건수'] / current_total) * 100 # % 계산
+
+        # 2. [전체 누적] 데이터 집계 및 비율 계산
         total_d_cnt = df.groupby(['요일_명','요일_숫자']).size().reset_index(name='전체건수').sort_values('요일_숫자')
-        
-        # 3. 이중 축 차트 생성
+        all_total = total_d_cnt['전체건수'].sum()
+        total_d_cnt['전체비율'] = (total_d_cnt['전체건수'] / all_total) * 100 # % 계산
+
+        # 3. 시각화 (Y축을 %로 통일)
         fig_d = go.Figure()
 
-        # (1) 배경: 전체 데이터 패턴 (회색 선/영역) - 오른쪽 Y축 사용
+        # (1) 배경: 전체 평균 분포 (회색 선/영역)
         fig_d.add_trace(go.Scatter(
             x=total_d_cnt['요일_명'], 
-            y=total_d_cnt['전체건수'],
-            name='전체 누적 패턴',
-            mode='lines',
-            line=dict(color='rgba(200, 200, 200, 0.5)', width=3, dash='dot'),
-            yaxis='y2' # 보조축 사용
+            y=total_d_cnt['전체비율'],
+            name='평소 패턴(%)',
+            mode='lines+markers',
+            line=dict(color='rgba(180, 180, 180, 0.5)', width=2, dash='dot'),
+            hovertemplate='평소 비중: %{y:.1f}%<br>(누적 %{text}건)',
+            text=total_d_cnt['전체건수'] # 호버용 데이터
         ))
 
-        # (2) 전경: 선택된 데이터 (컬러 막대) - 왼쪽 Y축 사용
+        # (2) 전경: 선택 기간 분포 (컬러 막대)
         fig_d.add_trace(go.Bar(
             x=d_cnt['요일_명'], 
-            y=d_cnt['건수'],
-            name='선택 기간',
+            y=d_cnt['비율'],
+            name='선택 기간(%)',
             marker_color='#00CC96',
-            text=d_cnt['건수'],
-            textposition='auto'
+            text=d_cnt['건수'], # 막대 위에는 '실제 건수' 표시
+            texttemplate='%{text}건', # 텍스트 포맷
+            textposition='auto',
+            hovertemplate='이번 비중: %{y:.1f}%<br>(실제 %{text}건)'
         ))
 
-        # (3) 레이아웃 설정 (이중 축)
         fig_d.update_layout(
-            yaxis=dict(title="선택 기간 건수"),
-            yaxis2=dict(
-                title="전체 누적 건수",
-                overlaying='y', # 첫 번째 y축 위에 겹침
-                side='right',   # 오른쪽 배치
-                showgrid=False  # 그리드는 메인 축만 표시
-            ),
+            yaxis=dict(title="발생 비중 (%)", ticksuffix="%"), # Y축은 퍼센트
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20)
+            margin=dict(t=40, b=20, l=20, r=20),
+            hovermode="x unified" # 마우스 올리면 둘 다 비교
         )
         
         st.plotly_chart(fig_d, use_container_width=True, key="chart_day_pattern")
@@ -309,51 +315,51 @@ with col3:
 with col4:
     st.subheader("4️⃣ 시간대별 집중 발생 (Peak Time)")
     if not detail_df.empty:
-        # 1. 선택된 데이터 집계 (0~23시 채우기)
+        # 1. [선택 기간] 데이터
         h_cnt = detail_df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
-        
-        # 2. 전체 데이터 집계
+        current_total_h = h_cnt.sum()
+        h_pct = (h_cnt / current_total_h * 100).fillna(0) # % 계산
+
+        # 2. [전체 누적] 데이터
         total_h_cnt = df['시간'].value_counts().reindex(range(24), fill_value=0).sort_index()
+        all_total_h = total_h_cnt.sum()
+        total_h_pct = (total_h_cnt / all_total_h * 100).fillna(0) # % 계산
         
-        # 라벨 생성
         hours = [f"{i:02d}시" for i in range(24)]
 
-        # 3. 이중 축 차트 생성
+        # 3. 시각화
         fig_h = go.Figure()
 
-        # (1) 배경: 전체 데이터 패턴
+        # (1) 배경: 전체 평균 분포
         fig_h.add_trace(go.Scatter(
             x=hours, 
-            y=total_h_cnt.values,
-            name='전체 누적 패턴',
+            y=total_h_pct.values,
+            name='평소 패턴(%)',
             mode='lines',
-            fill='tozeroy', # 바닥까지 색 채우기 (영역 차트 느낌)
-            fillcolor='rgba(200, 200, 200, 0.1)', # 아주 연한 회색
+            fill='tozeroy',
+            fillcolor='rgba(200, 200, 200, 0.1)',
             line=dict(color='rgba(180, 180, 180, 0.5)', width=1),
-            yaxis='y2'
+            hovertemplate='평소 비중: %{y:.1f}%<br>(누적 %{text}건)',
+            text=total_h_cnt.values
         ))
 
-        # (2) 전경: 선택된 데이터
+        # (2) 전경: 선택 기간 분포
         fig_h.add_trace(go.Bar(
             x=hours, 
-            y=h_cnt.values,
-            name='선택 기간',
-            marker_color='#EF553B', # 붉은 계열
-            text=h_cnt.values,
-            textposition='outside'
+            y=h_pct.values,
+            name='선택 기간(%)',
+            marker_color='#EF553B',
+            text=h_cnt.values, # 막대 위에는 '실제 건수'
+            texttemplate='%{text}', # 0건일 때 등 고려하여 포맷 단순화
+            textposition='outside', # 막대 밖으로 표시
+            hovertemplate='이번 비중: %{y:.1f}%<br>(실제 %{text}건)'
         ))
 
-        # (3) 레이아웃 설정
         fig_h.update_layout(
-            yaxis=dict(title="선택 기간 건수"),
-            yaxis2=dict(
-                title="전체 누적 건수",
-                overlaying='y',
-                side='right',
-                showgrid=False
-            ),
+            yaxis=dict(title="발생 비중 (%)", ticksuffix="%"),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=40, b=20, l=20, r=20)
+            margin=dict(t=40, b=20, l=20, r=20),
+            hovermode="x unified"
         )
         
         st.plotly_chart(fig_h, use_container_width=True, key="chart_time_pattern")
@@ -507,6 +513,7 @@ else:
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
 
