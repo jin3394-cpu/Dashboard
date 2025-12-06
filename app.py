@@ -320,8 +320,8 @@ if not prev_period_df.empty and not detail_df.empty:
         prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
         fig_p = px.pie(prev_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] 건수와 퍼센트를 함께 표시
-        fig_p.update_traces(textinfo='percent+value') 
+        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
+        fig_p.update_traces(textinfo='label+percent+value') 
         
         fig_p.update_layout(
             showlegend=True, 
@@ -330,7 +330,7 @@ if not prev_period_df.empty and not detail_df.empty:
         )
         st.plotly_chart(fig_p, use_container_width=True, key="chart_pie_prev")
 
-    # 2. 중앙: 증감 내역 (기존과 동일)
+    # 2. 중앙: 증감 내역 (변경 없음)
     with c_center:
         st.subheader("📊 증감 내역")
         curr_s = detail_df['장애유형'].value_counts()
@@ -364,8 +364,8 @@ if not prev_period_df.empty and not detail_df.empty:
         curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
         fig_c = px.pie(curr_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] 건수와 퍼센트를 함께 표시
-        fig_c.update_traces(textinfo='percent+value')
+        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
+        fig_c.update_traces(textinfo='label+percent+value')
         
         fig_c.update_layout(
             showlegend=True, 
@@ -380,12 +380,13 @@ else:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
         fig_t = px.pie(t_cnt, names='장애유형', values='건수', hole=0.3)
         
-        # [수정] 건수와 퍼센트를 함께 표시 (데이터가 없을 때 표시되는 차트)
-        fig_t.update_traces(textinfo='percent+value')
+        # [수정] 라벨(유형) + 퍼센트 + 건수 모두 표시
+        fig_t.update_traces(textinfo='label+percent+value')
         
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
 
