@@ -305,12 +305,13 @@ st.markdown("---")
 # -----------------------------------------------------
 # 6. 장애 유형 상세 비교 분석 (핵심: 고정 색상 적용)
 # -----------------------------------------------------
+
 st.header("6️⃣ 장애 유형 상세 비교 분석")
 
 if not prev_period_df.empty and not detail_df.empty:
     c_prev, c_center, c_curr = st.columns([3, 2, 3])
     
-    # 공통 범례 설정
+    # 공통 범례 설정 (차트 하단 가로 배치)
     legend_setting = dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
 
     # 1. 왼쪽: 이전 차트
@@ -318,9 +319,17 @@ if not prev_period_df.empty and not detail_df.empty:
         label_prev = kpi_label_suffix.replace('대비', '').strip('() ') or "이전 기간"
         st.subheader(f"📉 {label_prev}")
         prev_cnt = prev_period_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_p = px.pie(prev_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] texttemplate 사용: 이름 <br>(줄바꿈) 건수 / 퍼센트
+        fig_p = px.pie(
+            prev_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.4,
+            color='장애유형',                  # 색상 기준 컬럼
+            color_discrete_map=TYPE_COLOR_MAP  # 커스텀 색상 맵 적용
+        )
+        
+        # 텍스트 포맷 설정: 이름 <br> 건수 / 퍼센트
         fig_p.update_traces(
             texttemplate='%{label}<br>%{value}건 / %{percent}',
             textposition='inside'
@@ -333,7 +342,7 @@ if not prev_period_df.empty and not detail_df.empty:
         )
         st.plotly_chart(fig_p, use_container_width=True, key="chart_pie_prev")
 
-    # 2. 중앙: 증감 내역 (변경 없음)
+    # 2. 중앙: 증감 내역
     with c_center:
         st.subheader("📊 증감 내역")
         curr_s = detail_df['장애유형'].value_counts()
@@ -365,9 +374,17 @@ if not prev_period_df.empty and not detail_df.empty:
     with c_curr:
         st.subheader("📈 현재 기간")
         curr_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_c = px.pie(curr_cnt, names='장애유형', values='건수', hole=0.4)
         
-        # [수정] texttemplate 사용
+        fig_c = px.pie(
+            curr_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.4,
+            color='장애유형',                  # 색상 기준 컬럼
+            color_discrete_map=TYPE_COLOR_MAP  # 커스텀 색상 맵 적용
+        )
+        
+        # 텍스트 포맷 설정
         fig_c.update_traces(
             texttemplate='%{label}<br>%{value}건 / %{percent}',
             textposition='inside'
@@ -384,9 +401,17 @@ else:
     st.info("비교할 과거 데이터가 없어 현재 데이터만 표시합니다.")
     if not detail_df.empty:
         t_cnt = detail_df.groupby('장애유형').size().reset_index(name='건수')
-        fig_t = px.pie(t_cnt, names='장애유형', values='건수', hole=0.3)
         
-        # [수정] texttemplate 사용 (데이터 없을 때 fallback 차트)
+        fig_t = px.pie(
+            t_cnt, 
+            names='장애유형', 
+            values='건수', 
+            hole=0.3,
+            color='장애유형',                  # 색상 기준 컬럼
+            color_discrete_map=TYPE_COLOR_MAP  # 커스텀 색상 맵 적용
+        )
+        
+        # 텍스트 포맷 설정
         fig_t.update_traces(
             texttemplate='%{label}<br>%{value}건 / %{percent}',
             textposition='inside'
@@ -395,6 +420,7 @@ else:
         st.plotly_chart(fig_t, use_container_width=True, key="chart_pie_fallback")
 
 st.markdown("---")
+
 
 
 
