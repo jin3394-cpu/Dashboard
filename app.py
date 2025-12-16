@@ -421,8 +421,16 @@ if not prev_period_df.empty and not detail_df.empty:
         # 투명도(opacity)를 무조건 1(완전 불투명)로 고정합니다.
         # 이렇게 하면 클릭해도 흐려지거나 반쪽만 남는 현상이 사라집니다.
         fig_bar.update_traces(
-            selected=dict(marker=dict(opacity=1)),
-            unselected=dict(marker=dict(opacity=1))
+            textfont_color='white',     # 폰트 색상: 진한 검정
+            textposition='outside',     # 위치: 막대 바로 위 (잘 보이게)
+            selected=dict(
+                marker=dict(opacity=1),
+                textfont=dict(color='white') # opacity 제거
+            ),
+            unselected=dict(
+                marker=dict(opacity=1),
+                textfont=dict(color='white') # opacity 제거
+            )
         )
         
         event_bar = st.plotly_chart(
