@@ -465,7 +465,7 @@ else:
                 
         with c2:
             current_selection = st.session_state.dashboard_selected_type
-            pull_vals = [0.2 if x == current_selection else 0 for x in pie_data_curr['장애유형']]
+            pull_vals = [0 if x == current_selection else 0 for x in pie_data_curr['장애유형']]
             fig_t = px.pie(pie_data_curr, names='장애유형', values='건수', hole=0.3)
             fig_t.update_traces(pull=pull_vals)
             st.plotly_chart(fig_t, width="stretch", key="chart_pie_fallback")
