@@ -333,10 +333,65 @@ if not prev_period_df.empty and not detail_df.empty:
     # -------------------------------------------------
     # 탭 생성
     # -------------------------------------------------
-    tab_pie, tab_bar = st.tabs(["🥧 유형별 점유율 (파이차트 & 표)", "📊 기간별 비교 (막대그래프)"])
-
-    # [탭 1] 파이차트 + 증감 표 (기존 로직 유지)
+    tab_pie, tab_bar = st.tabs(["📊 기간별 비교 (막대그래프)","🥧 유형별 점유율 (파이차트 & 표)"])
+    
+     # [탭 1] 그룹형 막대 그래프 (시각적 변화 없는 클릭 기능)
     with tab_pie:
+        st.subheader("📊 기간별 발생 건수 상세 비교")
+        st.caption("👇 막대를 클릭하면 하단에 상세 내역이 표시됩니다.")
+        
+        fig_bar = px.bar(
+            bar_df_long, 
+            x='장애유형', 
+            y='건수', 
+            color='기간', 
+            barmode='group',
+            text='건수',
+            color_discrete_map={'이전 기간': '#ABACF7', '현재 기간': '#EF553B'},
+            category_orders={"기간": ["이전 기간", "현재 기간"]} # 순서 고정
+        )
+
+        fig_bar.update_layout(
+            xaxis_title=None,
+            yaxis_title="발생 건수",
+            legend_title=None,
+            margin=dict(t=20, b=20, l=20, r=20),
+            hovermode="x unified",
+            # [중요] clickmode를 기본값(event+select)으로 두되, 아래에서 시각 효과를 억제함
+            clickmode='event+select'
+        )        
+        
+        # 이렇게 하면 클릭해도 흐려지거나 반쪽만 남는 현상이 사라집니다.
+        fig_bar.update_traces(
+            textfont_color='white',     # 폰트 색상: 진한 검정
+            textposition='outside',     # 위치: 막대 바로 위 (잘 보이게)
+            selected=dict(
+                marker=dict(opacity=1),
+                textfont=dict(color='white') # opacity 제거
+            ),
+            unselected=dict(
+                marker=dict(opacity=1),
+                textfont=dict(color='white') # opacity 제거
+            )
+        )
+        
+        event_bar = st.plotly_chart(
+            fig_bar, 
+            width="stretch", 
+            key="chart_grouped_bar_static",
+            on_select="rerun", # 데이터는 전송됨
+            selection_mode="points"
+        )
+        
+        # 막대 클릭 시 상태 업데이트
+        if event_bar and event_bar.selection["points"]:
+            clicked_bar_type = event_bar.selection["points"][0]["x"]
+            if st.session_state.dashboard_selected_type != clicked_bar_type:
+                st.session_state.dashboard_selected_type = clicked_bar_type
+                st.rerun()
+
+    # [탭 2] 파이차트 + 증감 표 (기존 로직 유지)
+    with tab_bar:
         c_prev, c_center, c_curr = st.columns([3, 2, 3])
         legend_setting = dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
 
@@ -390,63 +445,7 @@ if not prev_period_df.empty and not detail_df.empty:
             fig_c.update_layout(showlegend=True, legend=legend_setting, margin=dict(t=0, b=50, l=0, r=0))
             st.plotly_chart(fig_c, width="stretch", key="chart_pie_curr_tab1")
 
-    # [탭 2] 그룹형 막대 그래프 (시각적 변화 없는 클릭 기능)
-    with tab_bar:
-        st.subheader("📊 기간별 발생 건수 상세 비교")
-        st.caption("👇 막대를 클릭하면 하단에 상세 내역이 표시됩니다.")
-        
-        fig_bar = px.bar(
-            bar_df_long, 
-            x='장애유형', 
-            y='건수', 
-            color='기간', 
-            barmode='group',
-            text='건수',
-            color_discrete_map={'이전 기간': '#ABACF7', '현재 기간': '#EF553B'},
-            category_orders={"기간": ["이전 기간", "현재 기간"]} # 순서 고정
-        )
-
-        fig_bar.update_layout(
-            xaxis_title=None,
-            yaxis_title="발생 건수",
-            legend_title=None,
-            margin=dict(t=20, b=20, l=20, r=20),
-            hovermode="x unified",
-            # [중요] clickmode를 기본값(event+select)으로 두되, 아래에서 시각 효과를 억제함
-            clickmode='event+select'
-        )
-        
-        # [핵심 해결책]
-        # 선택된 막대(selected)든 선택 안 된 막대(unselected)든
-        # 투명도(opacity)를 무조건 1(완전 불투명)로 고정합니다.
-        # 이렇게 하면 클릭해도 흐려지거나 반쪽만 남는 현상이 사라집니다.
-        fig_bar.update_traces(
-            textfont_color='white',     # 폰트 색상: 진한 검정
-            textposition='outside',     # 위치: 막대 바로 위 (잘 보이게)
-            selected=dict(
-                marker=dict(opacity=1),
-                textfont=dict(color='white') # opacity 제거
-            ),
-            unselected=dict(
-                marker=dict(opacity=1),
-                textfont=dict(color='white') # opacity 제거
-            )
-        )
-        
-        event_bar = st.plotly_chart(
-            fig_bar, 
-            width="stretch", 
-            key="chart_grouped_bar_static",
-            on_select="rerun", # 데이터는 전송됨
-            selection_mode="points"
-        )
-        
-        # 막대 클릭 시 상태 업데이트
-        if event_bar and event_bar.selection["points"]:
-            clicked_bar_type = event_bar.selection["points"][0]["x"]
-            if st.session_state.dashboard_selected_type != clicked_bar_type:
-                st.session_state.dashboard_selected_type = clicked_bar_type
-                st.rerun()
+   
 
 else:
     # 단독 모드
@@ -475,7 +474,7 @@ else:
 # -----------------------------------------------------
 st.markdown("---")
 
-target_cols = ['발생일', '기기명', '장애유형', '장애알람', '조치 내용', '출동', '처리자']
+target_cols = ['발생일', '발생시간','기기명', '장애유형', '장애알람', '조치 내용','교체일시','교체 기기명','교체 모듈']
 final_selected_type = st.session_state.dashboard_selected_type
 
 if final_selected_type:
