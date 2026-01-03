@@ -306,4 +306,6 @@ else:
             s_df['발생일'] = s_df['발생일'].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notnull(x) else "")
         st.dataframe(s_df, width="stretch", hide_index=True)
     else:
+
         st.info("데이터가 없습니다.")
+
