@@ -103,3 +103,29 @@ def plot_pie_chart(data, pull_vals):
     fig.update_traces(pull=pull_vals)
     fig.update_layout(showlegend=True, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(t=0, b=50, l=0, r=0))
     return fig
+
+# charts.py 에 아래 함수 추가
+
+def plot_quarterly_trend(base_df, selected_year):
+    """
+    [신규] 연간 분기별 발생 추이 차트 (1분기 ~ 4분기)
+    """
+    # 분기별로 그룹핑
+    q_stats = base_df.groupby('분기').size().reset_index(name='건수')
+    
+    # 1분기, 2분기... 순서대로 정렬
+    q_stats = q_stats.sort_values('분기')
+    
+    # 막대 그래프 생성
+    fig = go.Figure(data=[
+        go.Bar(x=q_stats['분기'], y=q_stats['건수'], text=q_stats['건수'], marker_color='#EF553B')
+    ])
+    
+    fig.update_traces(textposition='outside')
+    fig.update_layout(
+        title=f"{selected_year} 분기별 추이", # 차트 제목에 연도 표시
+        xaxis_title="분기", 
+        yaxis_title="건수", 
+        margin=dict(t=40, b=20, l=20, r=20)
+    )
+    return fig
